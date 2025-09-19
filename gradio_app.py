@@ -650,11 +650,11 @@ if __name__ == '__main__':
     parser.add_argument("--texgen_model_path", type=str, default='tencent/Hunyuan3D-2')
     parser.add_argument('--port', type=int, default=8080)
     parser.add_argument('--host', type=str, default='0.0.0.0')
-    parser.add_argument('--device', type=str, default='cuda')
+    parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
     parser.add_argument('--mc_algo', type=str, default='mc')
     parser.add_argument('--cache-path', type=str, default='gradio_cache')
     parser.add_argument('--enable_t23d', action='store_true')
-    parser.add_argument('--disable_tex', action='store_true')
+    parser.add_argument('--enable_tex', action='store_true')
     parser.add_argument('--enable_flashvdm', action='store_true')
     parser.add_argument('--compile', action='store_true')
     parser.add_argument('--low_vram_mode', action='store_true')
@@ -690,7 +690,7 @@ if __name__ == '__main__':
     SUPPORTED_FORMATS = ['glb', 'obj', 'ply', 'stl']
 
     HAS_TEXTUREGEN = False
-    if not args.disable_tex:
+    if args.enable_tex:
         try:
             from hy3dgen.texgen import Hunyuan3DPaintPipeline
 
