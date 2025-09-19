@@ -84,11 +84,11 @@ Hunyuan3D-2-1 Series
 
 Hunyuan3D-2mini Series
 
-| Model                       | Description                   | Date       | Size | Huggingface                                                                                      |
-|-----------------------------|-------------------------------|------------|------|--------------------------------------------------------------------------------------------------|
-| Hunyuan3D-DiT-v2-mini-Turbo | Step Distillation Version     | 2025-03-19 | 0.6B | [Download](https://huggingface.co/tencent/Hunyuan3D-2mini/tree/main/hunyuan3d-dit-v2-mini-turbo) |
-| Hunyuan3D-DiT-v2-mini-Fast  | Guidance Distillation Version | 2025-03-18 | 0.6B | [Download](https://huggingface.co/tencent/Hunyuan3D-2mini/tree/main/hunyuan3d-dit-v2-mini-fast)  |
-| *Hunyuan3D-DiT-v2-mini*       | Mini Image to Shape Model     | 2025-03-18 | 0.6B | [Download](https://huggingface.co/tencent/Hunyuan3D-2mini/tree/main/hunyuan3d-dit-v2-mini)       |
+| Model                           | Description                   | Date       | Size | Huggingface                                                                                      |
+|---------------------------------|-------------------------------|------------|------|--------------------------------------------------------------------------------------------------|
+| Hunyuan3D-DiT-v2-mini-Turbo     | Step Distillation Version     | 2025-03-19 | 0.6B | [Download](https://huggingface.co/tencent/Hunyuan3D-2mini/tree/main/hunyuan3d-dit-v2-mini-turbo) |
+| Hunyuan3D-DiT-v2-mini-Fast      | Guidance Distillation Version | 2025-03-18 | 0.6B | [Download](https://huggingface.co/tencent/Hunyuan3D-2mini/tree/main/hunyuan3d-dit-v2-mini-fast)  |
+| **Hunyuan3D-DiT-v2-mini**       | Mini Image to Shape Model     | 2025-03-18 | 0.6B | [Download](https://huggingface.co/tencent/Hunyuan3D-2mini/tree/main/hunyuan3d-dit-v2-mini)       |
 
 Hunyuan3D-2mv Series
 
@@ -123,7 +123,7 @@ Hunyuan3D 2.0 supports Macos, Windows, Linux. You may follow the next steps to u
 
 ### Install Requirements
 
-Please install Pytorch via the [official](https://pytorch.org/) site. Then install the other requirements via
+Please install Pytorch via the [official](https://pytorch.org/) site. Then install the other requirements via:
 
 ```bash
 git clone https://github.com/ict302it12/Hunyuan3D-2.git
@@ -146,8 +146,7 @@ pipeline = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained('tencent/Hunyuan3D-2
 mesh = pipeline(image='assets/demo.png')[0]
 ```
 
-The output mesh is a [trimesh object](https://trimesh.org/trimesh.html), which you could save to glb/obj (or other
-format) file.
+The output mesh is a [trimesh object](https://trimesh.org/trimesh.html), which you could save to glb/obj (or other format) file.
 
 Please visit [examples](examples) folder for more advanced usage, such as **multiview image to 3D generation** and **texture generation for handcrafted mesh**.
 
@@ -170,13 +169,12 @@ Turbo Version
 python3 gradio_app.py --model_path tencent/Hunyuan3D-2mini --subfolder hunyuan3d-dit-v2-mini-turbo --low_vram_mode --enable_flashvdm
 ```
 
-The app will be accessible at http://localhost:8080
+The app will be accessible at https://localhost:8080
 
 
 ### API Server
 
-You could launch an API server locally, which you could post web request for Image/Text to 3D, Texturing existing mesh,
-and e.t.c.
+You could launch an API server locally, which you could post web request for Image/Text to 3D, Texturing existing mesh, and e.t.c.
 
 ```bash
 python api_server.py --host 0.0.0.0 --port 8080
