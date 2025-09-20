@@ -6,7 +6,6 @@
 gradio
 comfyui
 api
-blender
 code
 studio
 ```

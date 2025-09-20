@@ -4,7 +4,7 @@ You could launch an API server locally, which you could post web request for Ima
 and e.t.c.
 
 ```bash
-python api_server.py --host 0.0.0.0 --port 8080
+python api_server.py --host 127.0.0.1 --port 8080
 ```
 
 A demo post request for image to 3D without texture.
