@@ -18,6 +18,7 @@ import os
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.types
 import yaml
 
 from .attention_blocks import FourierEmbedder, Transformer, CrossAttentionDecoder, PointCrossAttentionEncoder

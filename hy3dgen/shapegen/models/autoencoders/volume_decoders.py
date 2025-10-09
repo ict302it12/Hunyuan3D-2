@@ -17,7 +17,6 @@ from collections.abc import Callable
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from einops import repeat
 from tqdm import tqdm
 
@@ -57,7 +56,7 @@ def extract_near_surface_volume_fn(input_tensor: torch.Tensor, alpha: float):
             pad_dims[pad_idx] = abs(shift)
 
         # 执行填充（添加batch和channel维度适配F.pad）
-        padded = F.pad(t.unsqueeze(0).unsqueeze(0), pad_dims[::-1], mode='replicate')  # 反转顺序适配F.pad
+        padded = nn.functional.pad(t.unsqueeze(0).unsqueeze(0), pad_dims[::-1], mode='replicate')  # 反转顺序适配F.pad
 
         # 构建动态切片索引
         slice_dims = [slice(None)] * 3  # 初始化为全切片

@@ -20,14 +20,15 @@ import os
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.types
 import yaml
 from PIL import Image
-from diffusers.utils.torch_utils import randn_tensor
 from diffusers.utils.import_utils import is_accelerate_version, is_accelerate_available
 from tqdm import tqdm
 from trimesh import Trimesh
 
-from .models.autoencoders import ShapeVAE, SurfaceExtractors
+from .models.autoencoders import ShapeVAE
+from .models.autoencoders import SurfaceExtractors
 from .utils import logger, synchronize_timer, smart_load_model
 
 
@@ -205,7 +206,7 @@ class Hunyuan3DDiTPipeline:
         self.scheduler = scheduler
         self.conditioner = conditioner
         self.image_processor = image_processor
-        self.kwargs = kwargs
+        self.kwargs = kwargs 
         self.to(device, dtype)
 
     def compile(self):
@@ -408,6 +409,7 @@ class Hunyuan3DDiTPipeline:
             )
 
         if latents is None:
+            from diffusers.utils.torch_utils import randn_tensor
             latents = randn_tensor(shape, generator=generator, device=device, dtype=dtype)
         else:
             latents = latents.to(device)
@@ -474,9 +476,10 @@ class Hunyuan3DDiTPipeline:
         if mc_algo is None:
             return
         logger.info(
-            "The parameter `mc_algo` is deprecated, and will be removed in future versions. Please use instead:\n"
+            "The parameter `mc_algo` is deprecated, and will be removed in future versions.\n"
+            "Please use instead:\n"
             ">>> from hy3dgen.shapegen.models.autoencoders import SurfaceExtractors\n"
-            ">>> pipeline.vae.surface_extractor = SurfaceExtractors[mc_algo]()\n"
+            ">>> pipeline.vae.surface_extractor = SurfaceExtractors[mc_algo]()"
         )
         if mc_algo not in SurfaceExtractors.keys():
             raise ValueError(f"Unknown mc_algo {mc_algo}")
@@ -518,6 +521,7 @@ class Hunyuan3DDiTPipeline:
             guidance_cond = self.get_guidance_scale_embedding(
                 guidance_scale_tensor, embedding_dim=self.model.guidance_cond_proj_dim,
             ).to(device=device, dtype=latents.dtype)
+
         with synchronize_timer("Diffusion Sampling"):
             for i, t in enumerate(tqdm(timesteps, disable=not enable_pbar, desc="Diffusion Sampling", leave=False)):
                 # expand the latents if we are doing classifier free guidance
@@ -588,6 +592,9 @@ class Hunyuan3DDiTFlowMatchingPipeline(Hunyuan3DDiTPipeline):
         dtype = self.dtype
         do_classifier_free_guidance = guidance_scale >= 0 and not (hasattr(self.model, 'guidance_embed') and self.model.guidance_embed)
 
+        # TEST: multiple image input
+        #if not isinstance(image, (dict, list)):
+        #    image = dict.fromkeys(['1', '2', '3'], image)
         cond_inputs = self.prepare_image(image)
         image = cond_inputs.pop('image')
         cond = self.encode_cond(image=image, additional_cond_inputs=cond_inputs, do_classifier_free_guidance=do_classifier_free_guidance, dual_guidance=False)

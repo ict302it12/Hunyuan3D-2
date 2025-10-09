@@ -31,13 +31,14 @@ import numpy as np
 import torch
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.schedulers.scheduling_utils import SchedulerMixin
-from diffusers.utils import logging, outputs
+from diffusers.utils import logging
+from diffusers.utils.outputs import BaseOutput
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
 
 @dataclass
-class FlowMatchEulerDiscreteSchedulerOutput(outputs.BaseOutput):
+class FlowMatchEulerDiscreteSchedulerOutput(BaseOutput):
     """
     Output class for the scheduler's `step` function output.
 
@@ -290,7 +291,7 @@ class FlowMatchEulerDiscreteScheduler(SchedulerMixin, ConfigMixin):
 
 
 @dataclass
-class ConsistencyFlowMatchEulerDiscreteSchedulerOutput(outputs.BaseOutput):
+class ConsistencyFlowMatchEulerDiscreteSchedulerOutput(BaseOutput):
     prev_sample: torch.FloatTensor
     pred_original_sample: torch.FloatTensor
 

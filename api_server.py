@@ -29,6 +29,7 @@ from io import BytesIO
 from typing import Any
 
 import torch
+import torch.types
 import trimesh
 import uvicorn
 from PIL import Image
@@ -38,17 +39,15 @@ from fastapi.responses import FileResponse, JSONResponse
 from hy3dgen.rembg import BackgroundRemover
 from hy3dgen.shapegen import DegenerateFaceRemover, FaceReducer, FloaterRemover, Hunyuan3DDiTFlowMatchingPipeline
 
-LOGDIR = "."
-
 server_error_msg = "**NETWORK ERROR DUE TO HIGH TRAFFIC. PLEASE REGENERATE OR REFRESH THIS PAGE.**"
-moderation_msg = "YOUR INPUT VIOLATES OUR CONTENT MODERATION GUIDELINES. PLEASE TRY AGAIN."
-
 handler = None
 
 
 def build_logger(logger_name: str, logger_filename: str):
 
     global handler
+    LOGDIR = "."
+
     formatter = logging.Formatter(
         fmt="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
@@ -62,13 +61,11 @@ def build_logger(logger_name: str, logger_filename: str):
     # Redirect stdout and stderr to loggers
     stdout_logger = logging.getLogger("stdout")
     stdout_logger.setLevel(logging.INFO)
-    sli = StreamToLogger(stdout_logger, logging.INFO)
-    sys.stdout = sli
+    sys.stdout = StreamToLogger(stdout_logger, logging.INFO)
 
     stderr_logger = logging.getLogger("stderr")
     stderr_logger.setLevel(logging.ERROR)
-    sle = StreamToLogger(stderr_logger, logging.ERROR)
-    sys.stderr = sle
+    sys.stderr = StreamToLogger(stderr_logger, logging.ERROR)
 
     # Get logger
     logger = logging.getLogger(logger_name)
@@ -118,11 +115,11 @@ class StreamToLogger(object):
         self.linebuf = ""
 
 
-SAVE_DIR = "gradio_cache"
+SAVE_DIR = "output_cache"
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 worker_id = str(uuid.uuid4())[:6]
-logger = build_logger("controller", f"{SAVE_DIR}/controller.log")
+logger = build_logger("controller", os.path.join(SAVE_DIR, "controller.log"))
 
 
 def load_image_from_base64(image: str):
@@ -131,16 +128,19 @@ def load_image_from_base64(image: str):
 
 class ModelWorker:
 
-    def __init__(self, model_path="tencent/Hunyuan3D-2mini", subfolder="hunyuan3d-dit-v2-mini", device: torch.types.Device = 'cuda'):
+    def __init__(
+        self, model_path="tencent/Hunyuan3D-2mini", subfolder="hunyuan3d-dit-v2-mini", use_safetensors=True, rembg_model="isnet-general-use",
+        device: torch.types.Device = 'cuda', **kwargs,
+    ):
 
         self.model_path = model_path
         self.worker_id = worker_id
         self.device = device
         logger.info(f"Loading the model {model_path} on worker {worker_id}...")
 
-        self.rembg = BackgroundRemover()
+        self.rembg = BackgroundRemover(rembg_model)
         self.pipeline = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained(
-            model_path, subfolder=subfolder, use_safetensors=True, device=device,
+            model_path, subfolder=subfolder, use_safetensors=use_safetensors, device=device,
         )
         #self.pipeline.enable_flashvdm(mc_algo='mc')
 
@@ -151,41 +151,45 @@ class ModelWorker:
             return args.limit_model_concurrency - model_semaphore._value + (len(model_semaphore._waiters) if model_semaphore._waiters is not None else 0)
 
     def get_status(self):
-        return {"speed": 1, "queue_length": self.get_queue_length()}
+        return {'speed': 1, 'queue_length': self.get_queue_length()}
 
     @torch.inference_mode()
     def generate(self, uid: uuid.UUID, params: dict[str, Any]):
 
-        if 'image' in params:
-            image = load_image_from_base64(params['image'])
+        logger.info(params)
+
+        if 'image' in params['inference']:
+            image = load_image_from_base64(params['inference']['image'])
         else:
             raise ValueError("No input image provided.")
 
-        image = self.rembg(image)
-        params['image'] = image
+        image = self.rembg(image, **params['rembg'])
+        params['inference']['image'] = image
 
-        seed = params.get('seed', 42)
+        """seed = params.get('seed', 42)
         params['generator'] = torch.Generator(self.device).manual_seed(seed)
         params['octree_resolution'] = params.get('octree_resolution', 256)
         params['num_inference_steps'] = params.get('num_inference_steps', 30)
         params['guidance_scale'] = params.get('guidance_scale', 5.0)
-        params['mc_algo'] = None
+        params['mc_algo'] = None"""
+
         import time
         t0 = time.time()
-        mesh = self.pipeline(**params)[0]
+        mesh = self.pipeline(**params['inference'])[0]
         t1 = time.time()
         logger.info("--- %s seconds ---" % (t1 - t0))
 
-        mesh = FloaterRemover()(mesh)
+        mesh = FloaterRemover()(mesh, nbfaceratio=params['nbfaceratio'])
         mesh = DegenerateFaceRemover()(mesh)
-        mesh = FaceReducer()(mesh, max_facenum=params.get('max_facenum', 10000))
+        mesh = FaceReducer()(mesh, max_facenum=params['max_facenum'])
 
-        type = params.get('type', 'glb')
+        type = params['output_file_type']
         with tempfile.NamedTemporaryFile(suffix=f".{type}", delete=False) as temp_file:
             mesh.export(temp_file.name)
             mesh = trimesh.load(temp_file.name)
             save_path = os.path.join(SAVE_DIR, f"{str(uid)}.{type}")
             mesh.export(save_path)
+            logger.info(f"Exported mesh saved to {save_path}")
 
         torch.cuda.empty_cache()
 
@@ -217,16 +221,16 @@ async def generate(request: Request):
     except ValueError as e:
         traceback.print_exc()
         print("Caught ValueError:", e)
-        ret = {"text": server_error_msg, "error_code": 1}
+        ret = {'text': server_error_msg, 'error_code': 1}
         return JSONResponse(ret, status_code=404)
     except torch.cuda.CudaError as e:
         print("Caught torch.cuda.CudaError:", e)
-        ret = {"text": server_error_msg, "error_code": 1}
+        ret = {'text': server_error_msg, 'error_code': 1}
         return JSONResponse(ret, status_code=404)
     except Exception as e:
         traceback.print_exc()
         print("Caught Unknown Error:", e)
-        ret = {"text": server_error_msg, "error_code": 1}
+        ret = {'text': server_error_msg, 'error_code': 1}
         return JSONResponse(ret, status_code=404)
 
 
@@ -237,8 +241,8 @@ async def generate(request: Request):
     params = await request.json()
     uid = uuid.uuid4()
 
-    threading.Thread(target=worker.generate, args=(uid, params,)).start()
-    ret = {"uid": str(uid)}
+    threading.Thread(target=worker.generate, args=(uid, params)).start()
+    ret = {'uid': str(uid)}
 
     return JSONResponse(ret, status_code=200)
 
@@ -249,11 +253,11 @@ async def status(uid: str):
     save_file_path = os.path.join(SAVE_DIR, f"{uid}.glb")
 
     if not os.path.exists(save_file_path):
-        response = {"status": "processing"}
+        response = {'status': "processing"}
     else:
         with open(save_file_path, 'rb') as f:
-            base64_str = base64.b64encode(f.read()).decode('utf-8')
-            response = {"status": "completed", "model_base64": base64_str}
+            base64_str = base64.b64encode(f.read()).decode()
+            response = {'status': "completed", 'model_base64': base64_str}
 
     return JSONResponse(response, status_code=200)
 
@@ -266,11 +270,13 @@ if __name__ == '__main__':
     parser.add_argument('--host', type=str, default="127.0.0.1")
     parser.add_argument('--port', type=int, default=8080)
     parser.add_argument('--model-path', type=str, default="tencent/Hunyuan3D-2mini")
+    parser.add_argument('--subfolder', type=str, default="hunyuan3d-dit-v2-mini")
+    parser.add_argument('--rembg-model', type=str, default="isnet-general-use")
     parser.add_argument('--device', type=str, choices=['cpu', 'cuda'], default='cuda')
-    parser.add_argument('--limit-model-concurrency', type=int, default=5)
+    parser.add_argument('--limit-model-concurrency', type=int, default=2)
     args = parser.parse_args()
     logger.info(f"args: {args}")
 
     model_semaphore = Semaphore(args.limit_model_concurrency)
-    worker = ModelWorker(model_path=args.model_path, device=args.device)
+    worker = ModelWorker(**args.__dict__)
     uvicorn.run(app, host=args.host, port=args.port, log_level='info')

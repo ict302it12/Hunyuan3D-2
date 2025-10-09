@@ -56,7 +56,6 @@ Hunyuan3D 2.0 supports MacOs, Windows, Linux. You may follow the next steps to u
 ```bash
 git clone https://github.com/ict302it12/Hunyuan3D-2.git
 cd Hunyuan3D-2
-pip install nvidia-pyindex
 pip install torch==2.0.1 torchvision==0.15.2 --index-url https://download.pytorch.org/whl/cu118
 pip install -e .
 ```

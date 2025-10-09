@@ -47,8 +47,8 @@ def reduce_face(mesh: pml.MeshSet, max_facenum=200000):
     return mesh
 
 
-def remove_floater(mesh: pml.MeshSet):
-    mesh.apply_filter("compute_selection_by_small_disconnected_components_per_face", nbfaceratio=0.33)
+def remove_floater(mesh: pml.MeshSet, nbfaceratio=0.33):
+    mesh.apply_filter("compute_selection_by_small_disconnected_components_per_face", nbfaceratio=nbfaceratio)
     mesh.apply_filter("compute_selection_transfer_face_to_vertex", inclusive=False)
     mesh.apply_filter("meshing_remove_selected_vertices_and_faces")
     return mesh
@@ -121,9 +121,9 @@ class FaceReducer:
 
 class FloaterRemover:
     @synchronize_timer("FloaterRemover")
-    def __call__(self, mesh: MeshType | str) -> MeshType:
+    def __call__(self, mesh: MeshType | str, nbfaceratio=0.33) -> MeshType:
         ms = import_mesh(mesh)
-        ms = remove_floater(ms)
+        ms = remove_floater(ms, nbfaceratio=nbfaceratio)
         mesh = export_mesh(mesh, ms)
         return mesh
 

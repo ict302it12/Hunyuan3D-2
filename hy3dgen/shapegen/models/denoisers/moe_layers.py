@@ -97,7 +97,6 @@ class MoEBlock(nn.Module):
             ]
         )
         self.gate = MoEGate(embed_dim=dim, num_experts=num_experts, num_experts_per_tok=moe_top_k)
-
         self.shared_experts = FeedForward(dim, dropout=dropout, activation_fn=activation_fn, final_dropout=final_dropout, inner_dim=ff_inner_dim, bias=ff_bias)
 
     def initialize_weight(self):

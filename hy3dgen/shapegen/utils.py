@@ -14,6 +14,7 @@
 
 import logging
 import os
+import re
 from functools import wraps
 
 from torch import cuda
@@ -85,11 +86,13 @@ class synchronize_timer:
         return wrapper
 
 
+os.environ['HY3DGEN_MODELS'] = os.path.join(os.path.abspath(__file__).split("shapegen")[0], "models")
+
 def smart_load_model(model_path, subfolder, use_safetensors, variant):
     original_model_path = model_path
 
     # Try local path
-    base_dir = os.environ.get('HY3DGEN_MODELS', os.path.expanduser(os.path.join("~", ".cache", "hy3dgen")))
+    base_dir = os.environ.get('HY3DGEN_MODELS', os.path.join("~", ".cache", "hy3dgen"))
     model_dir = os.path.join(base_dir, *os.path.split(model_path))
     model_path = os.path.join(model_dir, subfolder)
 

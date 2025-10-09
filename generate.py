@@ -10,48 +10,44 @@ from hy3dgen.rembg import BackgroundRemover
 from hy3dgen.shapegen import DegenerateFaceRemover, FaceReducer, FloaterRemover, Hunyuan3DDiTFlowMatchingPipeline
 
 
-def generate_from_img(img: str, output_dir: str, configs: dict[str, Any] | str):
+def generate_from_img(img: str, output_dir: str, config: dict[str, Any] | str):
 
-    # 1. Load configs
-    if isinstance(configs, str):
-        with open(configs, 'rb') as f:
-            config = json.load(f)
+    # 1. Load params
+    if isinstance(config, str):
+        with open(config, 'rb') as f:
+            params = json.load(f)
     else:
-        config = configs
+        params = config
 
-    data_params = config['data']
-    infer_params = config['inference']
-    model_params = config['model']
-    model_params['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
-    postp_params = config['post_processing']
+    params['model']['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     obj_name = os.path.splitext(os.path.basename(img))[0]
     output_dir = os.path.join(output_dir, obj_name)
-    ext = data_params['output_file_type']
+    ext = params['output_file_type']
     os.makedirs(output_dir, exist_ok=True)
 
     # 2. Load image
     image = Image.open(img).convert('RGBA')
 
     # 3. Remove backgroud from image
-    rembg = BackgroundRemover()
-    image = rembg(image)
+    rembg = BackgroundRemover(params['rembg']['model_name'])
+    image = rembg(image, **params['rembg'])
     #image.save(os.path.join(output_dir, f"{obj_name}_rembg.png"))
-    infer_params['image'] = image
+    params['inference']['image'] = image
 
     # 4. Model pipelines
-    pipeline = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained(**model_params)
+    pipeline = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained(**params['model'])
 
     # 5. Generate model
     t0 = time.time()
-    mesh = pipeline(**infer_params)[0]
+    mesh = pipeline(**params['inference'])[0]
     t1 = time.time()
     print(f"--- Model Shape Generation: {t1 - t0:.3f} secs ---")
 
     # 6. Perform mesh post-processing
-    mesh = FloaterRemover()(mesh)
+    mesh = FloaterRemover()(mesh, params['nbfaceratio'])
     mesh = DegenerateFaceRemover()(mesh)
-    mesh = FaceReducer()(mesh, **postp_params)
+    mesh = FaceReducer()(mesh, params['max_facenum'])
 
     # 7. Output model mesh
     mesh.export(os.path.join(output_dir, f"{obj_name}_mesh.{ext}"))

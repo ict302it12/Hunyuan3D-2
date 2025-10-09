@@ -36,8 +36,11 @@ def pipeline(args):
     img_b64 = load_encode_image(args.img)
     config['inference']['image'] = img_b64
     host, port = config['api']['host'], config['api']['port']
-    response = post(host, port, config['inference'])
-    output_path = output_result(os.path.basename(args.img), response, args.output_dir)
+    response = post(host, port, config)
+    if response.status_code != 404:
+        output_path = output_result(os.path.basename(args.img), response, args.output_dir)
+    else:
+        output_path = None
     return response, output_path
 
 

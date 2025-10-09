@@ -17,13 +17,13 @@ from rembg import remove, new_session
 
 
 class BackgroundRemover():
-    def __init__(self, model_name='u2net'):
+    def __init__(self, model_name='isnet-general-use'):
         self.session = new_session(model_name=model_name)
 
-    def __call__(self, image: Image.Image, am=False, amft=240, ambt=10, ames=10):
+    def __call__(self, image: Image.Image, am=False, amft=240, ambt=10, ames=10, **kwargs):
         """
         Remove background from image.
-        
+
         Parameters
         ----------
         image : Image
@@ -36,7 +36,7 @@ class BackgroundRemover():
             Alpha matting background threshold.
         ames : int, optional, default=10
             Alpha matting erode size.
-        
+
         Returns
         -------
         output : btyes | Image | ndarray

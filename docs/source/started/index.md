@@ -3,8 +3,6 @@
 ```{toctree}
 :hidden:
 
-gradio
-comfyui
 api
 code
 studio

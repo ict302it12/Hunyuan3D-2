@@ -7,12 +7,13 @@
     "api": {
         "host": "127.0.0.1",
         "port": 8080,
-        "limit_model_concurrency": 2
+        "limit_model_concurrency": 2,
+        "script": "api_server.py",
+        "script_args": "--host 127.0.0.1 --port 8080 --model-path tencent/Hunyuan3D-2mini --subfolder hunyuan3d-dit-v2-mini --device cuda --limit-model-concurrency 2"
     },
-    "data": {
-        "img_dir": "assets/test_images",
-        "outpur_dir": "results",
-        "output_file_type": "glb"
+    "post": {
+        "script": "post.py",
+        "script_args": "--host 127.0.0.1 --port 8080 --img assets/test_images/horse0.png --output-dir results --config-file gen_config.json"
     },
     "inference": {
         "guidance_scale": 7.5,
@@ -25,12 +26,20 @@
     "model": {
         "model_path": "tencent/Hunyuan3D-2mini",
         "subfolder": "hunyuan3d-dit-v2-mini",
-        "use_safetensors": false,
+        "use_safetensors": true,
         "variant": "fp16",
         "device": "cuda",
         "enable_flashvdm": false
     },
-    "post_processing": {
-        "max_facenum": 10000
-    }
+    "rembg": {
+        "model_name": "isnet-general-use",
+        "am": true,
+        "ambt": 10,
+        "ames": 11,
+        "amft": 270
+    },
+    "max_facenum": 10000,
+    "nbfaceratio": 0.33,
+    "output_dir": "results",
+    "output_file_type": "glb"
 }
