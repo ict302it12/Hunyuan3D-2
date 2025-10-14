@@ -13,8 +13,8 @@ device: cuda
 inference:
   guidance_scale: 7.5
   num_chunks: 10000
-  num_inference_steps: 100
-  octree_resolution: 128
+  num_inference_steps: 300
+  octree_resolution: 384
   output_type: trimesh
   seed: 42
 
