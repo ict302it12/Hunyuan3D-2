@@ -12,19 +12,15 @@
 # fine-tuning enabling code and other elements of the foregoing made publicly available
 # by Tencent in accordance with TENCENT HUNYUAN COMMUNITY LICENSE AGREEMENT.
 
-"""A model worker executes the model."""
-
-
+import asyncio
 import base64
 import logging
-import logging.handlers
 import os
 import sys
 import tempfile
 import threading
 import traceback
 import uuid
-from asyncio import Semaphore
 from io import BytesIO
 from typing import Any
 
@@ -32,6 +28,7 @@ import torch
 import torch.types
 import trimesh
 import uvicorn
+import yaml
 from PIL import Image
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
@@ -44,6 +41,21 @@ handler = None
 
 
 def build_logger(logger_name: str, logger_filename: str):
+    """
+    Build logger and redirect writes to its instance.
+
+    Parameters
+    ----------
+    logger_name : str
+        Name of logger.
+    logger_filename : str
+        Name of logger file.
+
+    Returns
+    -------
+    logger : Logger
+        Built logger.
+    """
 
     global handler
     LOGDIR = "."
@@ -88,31 +100,37 @@ def build_logger(logger_name: str, logger_filename: str):
 class StreamToLogger(object):
     """Fake file-like stream object that redirects writes to a logger instance."""
 
-    def __init__(self, logger: logging.Logger, log_level=logging.INFO):
+    def __init__(self, logger, log_level=logging.INFO):
         self.terminal = sys.stdout
         self.logger = logger
         self.log_level = log_level
-        self.linebuf = ""
+        self.linebuf = ''
 
-    def __getattr__(self, attr: str):
+    def __getattr__(self, attr):
         return getattr(self.terminal, attr)
 
-    def write(self, buf: str):
+    def write(self, buf):
         temp_linebuf = self.linebuf + buf
-        self.linebuf = ""
+        self.linebuf = ''
         for line in temp_linebuf.splitlines(True):
             # From the io.TextIOWrapper docs:
-            # > On output, if newline is None, any "\n" characters written are translated to the system default line separator.
-            # By default sys.stdout.write() expects "\n" newlines and then translates them so this is still cross platform.
-            if line[-1] == "\n":
+            # > On output, if newline is None, any '\n' characters written are translated to the system default line separator.
+            # By default sys.stdout.write() expects '\n' newlines and then translates them so this is still cross platform.
+            if line[-1] == '\n':
                 self.logger.log(self.log_level, line.rstrip())
             else:
                 self.linebuf += line
 
     def flush(self):
-        if self.linebuf != "":
+        if self.linebuf != '':
             self.logger.log(self.log_level, self.linebuf.rstrip())
-        self.linebuf = ""
+        self.linebuf = ''
+
+
+#def pretty_print_semaphore(semaphore):
+#    if semaphore is None:
+#        return "None"
+#    return f"Semaphore(value={semaphore._value}, locked={semaphore.locked()})"
 
 
 SAVE_DIR = "output_cache"
@@ -123,24 +141,60 @@ logger = build_logger("controller", os.path.join(SAVE_DIR, "controller.log"))
 
 
 def load_image_from_base64(image: str):
+    """
+    Load and decode base64 image.
+
+    Parameters
+    ----------
+    image : str
+        Input image base64 string.
+
+    Returns
+    -------
+    image : Image
+        Input image decoded as RGBA PIL Image.
+    """
+
     return Image.open(BytesIO(base64.b64decode(image))).convert('RGBA')
 
 
 class ModelWorker:
 
     def __init__(
-        self, model_path="tencent/Hunyuan3D-2mini", subfolder="hunyuan3d-dit-v2-mini", use_safetensors=True, rembg_model="isnet-general-use",
-        device: torch.types.Device = 'cuda', **kwargs,
+        self, model_path="tencent/Hunyuan3D-2mini", subfolder="hunyuan3d-dit-v2-mini", use_safetensors=True, device: torch.types.Device = 'cuda',
+        rembg_model="isnet-general-use", **kwargs,
     ):
+        """
+        A model worker executes the model.
+
+        Parameters
+        ----------
+        model_path : str, optional, default="tencent/Hunyuan3D-2mini"
+            Name of pretrained model HuggingFace repository.
+        subfolder : str, optional, default="hunyuan3d-dit-v2-mini"
+            Name of specific model subfolder in pretrained model Huggingface repository.
+        use_safetensors : bool, optional, default=True
+            Whether to only use safetensors files for pretained models.
+        rembg_model : str, optional, default="isnet-general-use"
+            Name of rembg model to use for image background removal.
+        device : Device, optional, default='cuda'
+            Device to use for Pytorch and model generation.
+        """
 
         self.model_path = model_path
+        self.subfolder = subfolder
+        self.use_safetensors = use_safetensors
         self.worker_id = worker_id
-        self.device = device
-        logger.info(f"Loading the model {model_path} on worker {worker_id}...")
+        if device == 'cuda' and not torch.cuda.is_available():
+            logger.warning("CUDA not available. Using CPU as device instead.")
+            self.device = 'cpu'
+        else:
+            self.device = device
+        logger.info(f"Loading model {model_path} on worker {worker_id}...")
 
         self.rembg = BackgroundRemover(rembg_model)
         self.pipeline = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained(
-            model_path, subfolder=subfolder, use_safetensors=use_safetensors, device=device,
+            self.model_path, subfolder=self.subfolder, use_safetensors=self.use_safetensors, device=self.device,
         )
         #self.pipeline.enable_flashvdm(mc_algo='mc')
 
@@ -155,23 +209,36 @@ class ModelWorker:
 
     @torch.inference_mode()
     def generate(self, uid: uuid.UUID, params: dict[str, Any]):
+        """
+        Generate 3D model from HTTP request.
 
-        logger.info(params)
+        Parameters
+        ----------
+        uid : uuid.UUID
+            Unique job ID.
+        params : dict[str, Any]
+            Generation and model configuration parameters.
+
+        Returns
+        -------
+        sve_path : _type_
+            _description_.
+        uid : UUID
+            Universally Unique Identifier for generation job request.
+
+        Raises
+        ------
+        ValueError
+            No input image provided.
+        """
 
         if 'image' in params['inference']:
-            image = load_image_from_base64(params['inference']['image'])
+            image = [load_image_from_base64(img) for img in params['inference']['image']]
         else:
             raise ValueError("No input image provided.")
 
-        image = self.rembg(image, **params['rembg'])
-        params['inference']['image'] = image
-
-        """seed = params.get('seed', 42)
-        params['generator'] = torch.Generator(self.device).manual_seed(seed)
-        params['octree_resolution'] = params.get('octree_resolution', 256)
-        params['num_inference_steps'] = params.get('num_inference_steps', 30)
-        params['guidance_scale'] = params.get('guidance_scale', 5.0)
-        params['mc_algo'] = None"""
+        image = [self.rembg(img, **params['rembg']) for img in image]
+        params['inference']['image'] = image[0]
 
         import time
         t0 = time.time()
@@ -183,13 +250,14 @@ class ModelWorker:
         mesh = DegenerateFaceRemover()(mesh)
         mesh = FaceReducer()(mesh, max_facenum=params['max_facenum'])
 
-        type = params['output_file_type']
-        with tempfile.NamedTemporaryFile(suffix=f".{type}", delete=False) as temp_file:
+        file_type = params['output_file_type']
+        with tempfile.NamedTemporaryFile(suffix=f".{file_type}", delete=False) as temp_file:
             mesh.export(temp_file.name)
             mesh = trimesh.load(temp_file.name)
-            save_path = os.path.join(SAVE_DIR, f"{str(uid)}.{type}")
+            save_path = os.path.join(SAVE_DIR, f"{str(uid)}.{file_type}")
             mesh.export(save_path)
-            logger.info(f"Exported mesh saved to {save_path}")
+            if os.path.exists(save_path):
+                logger.info(f"Exported mesh saved to {save_path}")
 
         torch.cuda.empty_cache()
 
@@ -201,15 +269,30 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # You can specify allowed origins
+    allow_origins=["*"],    # You can specify allowed origins
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all methods
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["*"],    # Allow all methods
+    allow_headers=["*"],    # Allow all headers
 )
 
 
 @app.post("/generate")
 async def generate(request: Request):
+    """
+    Execute generation POST request (asynchronous).
+
+    Parameters
+    ----------
+    request : Request
+        _description_.
+
+    Returns
+    -------
+    response : FileResponse | JSONResponse
+        HTTP response containing either:
+        - `FileResponse` : Output file path to generated model and associated UID.
+        - `JSONResponse` : `server_error_msg` and status code.
+    """
 
     logger.info("Worker generating...")
     params = await request.json()
@@ -217,7 +300,7 @@ async def generate(request: Request):
 
     try:
         file_path, uid = worker.generate(uid, params)
-        return FileResponse(file_path)
+        return FileResponse(file_path, headers={'uid': str(uid)})
     except ValueError as e:
         traceback.print_exc()
         print("Caught ValueError:", e)
@@ -236,6 +319,19 @@ async def generate(request: Request):
 
 @app.post("/send")
 async def generate(request: Request):
+    """
+    Send generation job request (?) (asynchronous).
+
+    Parameters
+    ----------
+    request : Request
+        HTTP request.
+
+    Returns
+    -------
+    response : JSONResponse
+        HTTP response containing UID and status code.
+    """
 
     logger.info("Worker send...")
     params = await request.json()
@@ -249,6 +345,19 @@ async def generate(request: Request):
 
 @app.get("/status/{uid}")
 async def status(uid: str):
+    """
+    Request generation job status (asynchronous).
+
+    Parameters
+    ----------
+    uid : str
+        Generation job request UID.
+
+    Returns
+    -------
+    response : JSONResponse
+        HTTP response containing job status and status code.
+    """
 
     save_file_path = os.path.join(SAVE_DIR, f"{uid}.glb")
 
@@ -267,16 +376,17 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--host', type=str, default="127.0.0.1")
-    parser.add_argument('--port', type=int, default=8080)
-    parser.add_argument('--model-path', type=str, default="tencent/Hunyuan3D-2mini")
-    parser.add_argument('--subfolder', type=str, default="hunyuan3d-dit-v2-mini")
-    parser.add_argument('--rembg-model', type=str, default="isnet-general-use")
-    parser.add_argument('--device', type=str, choices=['cpu', 'cuda'], default='cuda')
-    parser.add_argument('--limit-model-concurrency', type=int, default=2)
+    parser.add_argument('--host', type=str, default="0.0.0.0", help="API Server host IP address")
+    parser.add_argument('--port', '-p', type=int, default=8080, help="API Server port")
+    parser.add_argument('--device', '-d', type=str, choices=['cpu', 'cuda'], default='cuda', help="Device for PyTorch and model generation")
+    parser.add_argument('--limit-model-concurrency', type=int, default=2, help="Maximum number of concurrent generator models working")
+    parser.add_argument('--config-path', '-c', type=str, default="config.yaml", help="Path to configuration YAML file")
     args = parser.parse_args()
     logger.info(f"args: {args}")
 
-    model_semaphore = Semaphore(args.limit_model_concurrency)
-    worker = ModelWorker(**args.__dict__)
-    uvicorn.run(app, host=args.host, port=args.port, log_level='info')
+    model_semaphore = asyncio.Semaphore(args.limit_model_concurrency)
+    worker = ModelWorker(**vars(args))
+
+    log_config = uvicorn.config.LOGGING_CONFIG
+    log_config['handlers']['default']['stream'] = log_config['handlers']['default']['stream'].replace('stderr', 'stdout')
+    uvicorn.run(app, host=args.host, port=args.port, log_config=log_config, log_level='info')

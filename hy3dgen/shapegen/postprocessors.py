@@ -104,7 +104,7 @@ def import_mesh(mesh: MeshType | str) -> pml.MeshSet:
         mesh_pymeshlab = pml.Mesh(vertex_matrix=mesh.mesh_v, face_matrix=mesh.mesh_f)
         mesh.add_mesh(mesh_pymeshlab, "converted_mesh")
 
-    if isinstance(mesh, (trimesh.Trimesh, trimesh.scene.Scene)):
+    if isinstance(mesh, (trimesh.Trimesh, trimesh.Scene)):
         mesh = trimesh2pymeshlab(mesh)
 
     return mesh

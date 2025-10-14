@@ -1,0 +1,48 @@
+# Hunyuan3D-2 Parameter Configuration
+
+# API Server
+api:
+  host: 0.0.0.0
+  limit_model_concurrency: 2
+  port: 8080
+
+# Device to use ('cuda' or 'cpu')
+device: cuda
+
+# 3D model generation inference pipeline
+inference:
+  guidance_scale: 7.5
+  num_chunks: 10000
+  num_inference_steps: 100
+  octree_resolution: 128
+  output_type: trimesh
+  seed: 42
+
+# `FaceReducer` maximum number of mesh faces
+max_facenum: 10000
+
+# Hunyuan3D-2 pretrained model
+model:
+  device: cuda
+  enable_flashvdm: false
+  model_path: tencent/Hunyuan3D-2mini
+  subfolder: hunyuan3d-dit-v2-mini
+  use_safetensors: true
+  variant: fp16
+
+# `FloaterRemover` ratio for number of faces to consider as small component to remove
+nbfaceratio: 0.33
+
+# Directory where output meshes are stored
+output_dir: results
+
+# File format of output meshes
+output_file_type: glb
+
+# `BackgroundRemover` model
+rembg:
+  alpha_matting: true
+  alpha_matting_background_threshold: 10
+  alpha_matting_erode_size: 11
+  alpha_matting_foreground_threshold: 270
+  model_name: isnet-general-use

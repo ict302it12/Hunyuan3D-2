@@ -19,11 +19,11 @@ import os
 
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.types
 import yaml
-from PIL import Image
 from diffusers.utils.import_utils import is_accelerate_version, is_accelerate_available
+from diffusers.utils.torch_utils import randn_tensor
+from PIL import Image
 from tqdm import tqdm
 from trimesh import Trimesh
 
@@ -146,7 +146,7 @@ class Hunyuan3DDiTPipeline:
             ckpt_path = ckpt_path.replace(".ckpt", ".safetensors")
         if not os.path.exists(ckpt_path):
             raise FileNotFoundError(f"Model file {ckpt_path} not found.")
-        logger.info(f"Loading model from {ckpt_path}")
+        logger.info(f"Loading model from path: {os.path.relpath(ckpt_path)}")
 
         if use_safetensors:
             # parse safetensors
@@ -206,7 +206,7 @@ class Hunyuan3DDiTPipeline:
         self.scheduler = scheduler
         self.conditioner = conditioner
         self.image_processor = image_processor
-        self.kwargs = kwargs 
+        self.kwargs = kwargs
         self.to(device, dtype)
 
     def compile(self):
@@ -253,7 +253,7 @@ class Hunyuan3DDiTPipeline:
         """
 
         for name, model in self.components.items():
-            if not isinstance(model, nn.Module) or name in self._exclude_from_cpu_offload:
+            if not isinstance(model, torch.nn.Module) or name in self._exclude_from_cpu_offload:
                 continue
 
             if not hasattr(model, '_hf_hook'):
@@ -306,13 +306,13 @@ class Hunyuan3DDiTPipeline:
             if hasattr(device_mod, 'empty_cache') and device_mod.is_available():
                 device_mod.empty_cache()  # otherwise we don't see the memory savings (but they probably exist)
 
-        all_model_components = {k: v for k, v in self.components.items() if isinstance(v, nn.Module)}
+        all_model_components = {k: v for k, v in self.components.items() if isinstance(v, torch.nn.Module)}
 
         self._all_hooks = []
         hook = None
         for model_str in self.model_cpu_offload_seq.split("->"):
             model = all_model_components.pop(model_str, None)
-            if not isinstance(model, nn.Module):
+            if not isinstance(model, torch.nn.Module):
                 continue
 
             _, hook = cpu_offload_with_hook(model, device, prev_module_hook=hook)
@@ -322,7 +322,7 @@ class Hunyuan3DDiTPipeline:
         # These models will stay on CPU until maybe_free_model_hooks is called.
         # Some models cannot be in the seq chain because they are iteratively called, such as controlnet.
         for name, model in all_model_components.items():
-            if not isinstance(model, nn.Module):
+            if not isinstance(model, torch.nn.Module):
                 continue
 
             if name in self._exclude_from_cpu_offload:
@@ -409,7 +409,6 @@ class Hunyuan3DDiTPipeline:
             )
 
         if latents is None:
-            from diffusers.utils.torch_utils import randn_tensor
             latents = randn_tensor(shape, generator=generator, device=device, dtype=dtype)
         else:
             latents = latents.to(device)
@@ -468,7 +467,7 @@ class Hunyuan3DDiTPipeline:
         emb = w.to(dtype)[:, None] * emb[None, :]
         emb = torch.cat([torch.sin(emb), torch.cos(emb)], dim=1)
         if embedding_dim % 2 == 1:  # zero pad
-            emb = nn.functional.pad(emb, (0, 1))
+            emb = torch.nn.functional.pad(emb, (0, 1))
         assert emb.shape == (w.shape[0], embedding_dim)
         return emb
 
@@ -592,7 +591,7 @@ class Hunyuan3DDiTFlowMatchingPipeline(Hunyuan3DDiTPipeline):
         dtype = self.dtype
         do_classifier_free_guidance = guidance_scale >= 0 and not (hasattr(self.model, 'guidance_embed') and self.model.guidance_embed)
 
-        # TEST: multiple image input
+        # TO DO: test multiple image input
         #if not isinstance(image, (dict, list)):
         #    image = dict.fromkeys(['1', '2', '3'], image)
         cond_inputs = self.prepare_image(image)

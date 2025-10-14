@@ -2,41 +2,61 @@ import os
 import time
 from typing import Any
 
-import json
 import torch
+import uuid
+import yaml
 from PIL import Image
 
 from hy3dgen.rembg import BackgroundRemover
 from hy3dgen.shapegen import DegenerateFaceRemover, FaceReducer, FloaterRemover, Hunyuan3DDiTFlowMatchingPipeline
 
 
-def generate_from_img(img: str, output_dir: str, config: dict[str, Any] | str):
+def generate_from_img(image: list[str], output_dir: str, config: dict[str, Any] | str):
+    """
+    Inference script to generate model from input image.
+
+    Parameters
+    ----------
+    image : list[Any]
+        Path/s to input image/s.
+    output_dir : str
+        Path to output file directory.
+    config : dict[str, Any] | str
+        Configuration dict or path to configuration YAML file.
+
+    Returns
+    -------
+    mesh : Trimesh
+        Generated 3D model mesh.
+    """
 
     # 1. Load params
     if isinstance(config, str):
         with open(config, 'rb') as f:
-            params = json.load(f)
+            params = yaml.safe_load(f)
     else:
         params = config
 
-    params['model']['device'] = 'cuda' if torch.cuda.is_available() else 'cpu'
+    if params['device'] == 'cuda' and not torch.cuda.is_available():
+        print("CUDA not available. Using CPU as device instead.")
+        params['device'] = 'cpu'
 
-    obj_name = os.path.splitext(os.path.basename(img))[0]
-    output_dir = os.path.join(output_dir, obj_name)
+    uid = uuid.UUID()
     ext = params['output_file_type']
-    os.makedirs(output_dir, exist_ok=True)
 
     # 2. Load image
-    image = Image.open(img).convert('RGBA')
+    image = [Image.open(img).convert('RGBA') for img in image]
 
     # 3. Remove backgroud from image
     rembg = BackgroundRemover(params['rembg']['model_name'])
-    image = rembg(image, **params['rembg'])
-    #image.save(os.path.join(output_dir, f"{obj_name}_rembg.png"))
-    params['inference']['image'] = image
+    image = [rembg(img, **params['rembg']) for img in image]
+    #img.save(os.path.join(output_dir, f"{obj_name}_rembg.png"))
+    params['inference']['image'] = image[0]
+
+    ######### CONTINUE CHANGING IMAGE INPUTS TO LISTS #########
 
     # 4. Model pipelines
-    pipeline = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained(**params['model'])
+    pipeline = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained(**params['model'], device=params['device'])
 
     # 5. Generate model
     t0 = time.time()
@@ -50,7 +70,7 @@ def generate_from_img(img: str, output_dir: str, config: dict[str, Any] | str):
     mesh = FaceReducer()(mesh, params['max_facenum'])
 
     # 7. Output model mesh
-    mesh.export(os.path.join(output_dir, f"{obj_name}_mesh.{ext}"))
+    mesh.export(os.path.join(output_dir, f"{uid}.{ext}"))
 
     # 8. Empty cuda cache
     torch.cuda.empty_cache()
@@ -63,9 +83,9 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--img', '-i', type=str, required=True, help="Path to input image")
-    parser.add_argument('--output-dir', '-o', type=str, default="results", help="Path to directory where results will be output")
-    parser.add_argument('--config-file', '-c', type=str, default="gen_config.json", help="JSON file with 3D Generator configuration options")
+    parser.add_argument('--image', '-i', type=str, action='extend', nargs='+', required=True, help="Path to input image file")
+    parser.add_argument('--output-dir', '-o', type=str, default="results", help="Path to output directory")
+    parser.add_argument('--config-path', '-c', type=str, default="config.yaml", help="Path to configuration YAML file")
     args = parser.parse_args()
 
-    generate_from_img(args.img, args.output_dir, args.config_file)
+    generate_from_img(**vars(args))

@@ -20,7 +20,10 @@ class BackgroundRemover():
     def __init__(self, model_name='isnet-general-use'):
         self.session = new_session(model_name=model_name)
 
-    def __call__(self, image: Image.Image, am=False, amft=240, ambt=10, ames=10, **kwargs):
+    def __call__(
+        self, image: Image.Image, alpha_matting=False, alpha_matting_foreground_threshold=240, alpha_matting_background_threshold=10, alpha_matting_erode_size=10,
+        **kwargs,
+    ):
         """
         Remove background from image.
 
@@ -28,13 +31,13 @@ class BackgroundRemover():
         ----------
         image : Image
             Input image.
-        am : bool, optional, default=False
+        alpha_matting : bool, optional, default=False
             Alpha matting.
-        amft : int, optional, default=240
+        alpha_matting_foreground_threshold : int, optional, default=240
             Alpha matting foreground threshold.
-        ambt : int, optional, default=10
+        alpha_matting_background_threshold : int, optional, default=10
             Alpha matting background threshold.
-        ames : int, optional, default=10
+        alpha_matting_erode_size : int, optional, default=10
             Alpha matting erode size.
 
         Returns
@@ -44,7 +47,8 @@ class BackgroundRemover():
         """
 
         output = remove(
-            image, alpha_matting=am, alpha_matting_foreground_threshold=amft, alpha_matting_background_threshold=ambt, alpha_matting_erode_size=ames,
+            image, alpha_matting=alpha_matting, alpha_matting_foreground_threshold=alpha_matting_foreground_threshold,
+            alpha_matting_background_threshold=alpha_matting_background_threshold, alpha_matting_erode_size=alpha_matting_erode_size,
             session=self.session, bgcolor=(255, 255, 255, 0),
         )
         return output

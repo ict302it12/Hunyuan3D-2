@@ -15,9 +15,10 @@
 import logging
 import os
 import re
+import sys
 from functools import wraps
 
-from torch import cuda
+import torch
 
 
 def get_logger(name):
@@ -26,9 +27,12 @@ def get_logger(name):
     logger.setLevel(logging.INFO)
 
     console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
+    console_handler.setLevel(logging.ERROR)
 
-    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    formatter = logging.Formatter(
+        fmt="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
@@ -62,8 +66,8 @@ class synchronize_timer:
     def __enter__(self):
         """Context manager entry: start timing."""
         if os.environ.get('HY3DGEN_DEBUG', '0') == '1':
-            self.start = cuda.Event(enable_timing=True)
-            self.end = cuda.Event(enable_timing=True)
+            self.start = torch.cuda.Event(enable_timing=True)
+            self.end = torch.cuda.Event(enable_timing=True)
             self.start.record()
             return lambda: self.time
 
@@ -71,7 +75,7 @@ class synchronize_timer:
         """Context manager exit: stop timing and log results."""
         if os.environ.get('HY3DGEN_DEBUG', '0') == '1':
             self.end.record()
-            cuda.synchronize()
+            torch.cuda.synchronize()
             self.time = self.start.elapsed_time(self.end)
             if self.name is not None:
                 logger.info(f"{self.name} takes {self.time} ms")
@@ -86,27 +90,26 @@ class synchronize_timer:
         return wrapper
 
 
-os.environ['HY3DGEN_MODELS'] = os.path.join(os.path.abspath(__file__).split("shapegen")[0], "models")
-
 def smart_load_model(model_path, subfolder, use_safetensors, variant):
     original_model_path = model_path
 
     # Try local path
-    base_dir = os.environ.get('HY3DGEN_MODELS', os.path.join("~", ".cache", "hy3dgen"))
+    base_dir = re.sub(r"(?<=hy3dgen\W).+", "models", os.path.abspath(__file__))
     model_dir = os.path.join(base_dir, *os.path.split(model_path))
     model_path = os.path.join(model_dir, subfolder)
 
-    extension = 'safetensors' if use_safetensors else 'ckpt'
+    ext = 'safetensors' if use_safetensors else 'ckpt'
     variant = '' if variant is None else f'.{variant}'
-    config_name, ckpt_name = "config.yaml", f"model{variant}.{extension}"
+    config_name, ckpt_name = "config.yaml", f"model{variant}.{ext}"
 
-    logger.info(f"Trying to load model from local path: {model_path}")
+    logger.info(f"Trying to load model from local path: {os.path.relpath(model_path)}")
     if not os.path.exists(os.path.join(model_path, ckpt_name)):
         logger.info("Model path does not exist, trying to download from huggingface.")
         try:
             from huggingface_hub import snapshot_download
             # Download only specified subdirectory (只下载指定子目录)
             # Key modification: Pattern matching subfolders (关键修改：模式匹配子文件夹)
+            os.makedirs(base_dir, exist_ok=True)
             path = snapshot_download(
                 repo_id=original_model_path, local_dir=model_dir,
                 allow_patterns=[os.path.join(subfolder, f) for f in [config_name, ckpt_name]],

@@ -56,7 +56,7 @@ Hunyuan3D 2.0 supports MacOs, Windows, Linux. You may follow the next steps to u
 ```bash
 git clone https://github.com/ict302it12/Hunyuan3D-2.git
 cd Hunyuan3D-2
-pip install torch==2.0.1 torchvision==0.15.2 --index-url https://download.pytorch.org/whl/cu118
+pip install torch==2.8.0 torchvision==0.23.0 --index-url https://download.pytorch.org/whl/cu126
 pip install -e .
 ```
 
@@ -64,7 +64,7 @@ pip install -e .
 ### Inference Script
 
 ```bash
-python generate.py -i assets/test_images/horse0.png -c -o results
+python generate.py -i assets/test_images/horse0.png -c config.yaml -o results
 ```
 
 
@@ -73,7 +73,7 @@ python generate.py -i assets/test_images/horse0.png -c -o results
 You could launch an API server locally, which you could post web request for Image to 3D:
 
 ```bash
-python api_server.py --host 127.0.0.1 --port 8080
+python api_server.py --host 0.0.0.0 --port 8080
 ```
 
 A demo post request for image to 3D:
@@ -199,6 +199,58 @@ It takes 6 GB VRAM for shape generation ~~and 16 GB for shape and texture genera
 [paint-v2-0]: https://huggingface.co/tencent/Hunyuan3D-2/tree/main/hunyuan3d-paint-v2-0
 [paint-v2-0-turbo]: https://huggingface.co/tencent/Hunyuan3D-2/tree/main/hunyuan3d-paint-v2-0-turbo
 [delight-v2-0]: https://huggingface.co/tencent/Hunyuan3D-2/tree/main/hunyuan3d-delight-v2-0
+
+
+### All Models Repo Structure
+
+```
+tencent/
+|-- Hunyuan3D-2/
+|   |-- hunyuan3d-delight-v2-0
+|   |-- hunyuan3d-dit-v2-0
+|   |-- hunyuan3d-dit-v2-0-fast
+|   |-- hunyuan3d-dit-v2-0-turbo
+|   |-- hunyuan3d-paint-v2-0
+|   |-- hunyuan3d-paint-v2-0-turbo
+|-- Hunyuan3D-2mini/
+|   |-- hunyuan3d-dit-v2-mini
+|   |-- hunyuan3d-dit-v2-mini-fast
+|   |-- hunyuan3d-dit-v2-mini-turbo
+|-- Hunyuan3D-2mv/
+|   |-- hunyuan3d-dit-v2-mv
+|   |-- hunyuan3d-dit-v2-mv-fast
+|   |-- hunyuan3d-dit-v2-mv-turbo
+|-- Hunyuan3D-2.1/
+|   |-- hunyuan3d-dit-v2-1
+|   |-- hunyuan3d-paintpbr-v2-1
+```
+
+
+### Model Path/Subfolder Argument Combination List
+
+```bash
+# Hunyuan3D-2
+--model-path tencent/Hunyuan3D-2 --subfolder hunyuan3d-delight-v2-0
+--model-path tencent/Hunyuan3D-2 --subfolder hunyuan3d-dit-v2-0
+--model-path tencent/Hunyuan3D-2 --subfolder hunyuan3d-dit-v2-0-fast
+--model-path tencent/Hunyuan3D-2 --subfolder hunyuan3d-dit-v2-0-turbo
+--model-path tencent/Hunyuan3D-2 --subfolder hunyuan3d-paint-v2-0
+--model-path tencent/Hunyuan3D-2 --subfolder hunyuan3d-paint-v2-0-turbo
+
+# Hunyuan3D-2mini
+--model-path tencent/Hunyuan3D-2mini --subfolder hunyuan3d-dit-v2-mini
+--model-path tencent/Hunyuan3D-2mini --subfolder hunyuan3d-dit-v2-mini-fast
+--model-path tencent/Hunyuan3D-2mini --subfolder hunyuan3d-dit-v2-mini-turbo
+
+# Hunyuan3D-2mv
+--model-path tencent/Hunyuan3D-2mv --subfolder hunyuan3d-dit-v2-mv
+--model-path tencent/Hunyuan3D-2mv --subfolder hunyuan3d-dit-v2-mv-fast
+--model-path tencent/Hunyuan3D-2mv --subfolder hunyuan3d-dit-v2-mv-turbo
+
+# Hunyuan3D-2.1
+--model-path tencent/Hunyuan3D-2.1 --subfolder hunyuan3d-dit-v2-1
+--model-path tencent/Hunyuan3D-2.1 --subfolder hunyuan3d-paintpbr-v2-1
+```
 
 
 ## **BibTeX**

@@ -391,9 +391,9 @@ class PointCrossAttentionEncoder(nn.Module):
         self.normal_pe = normal_pe
 
         if pc_sharpedge_size == 0:
-            print(f"PointCrossAttentionEncoder INFO: `pc_sharpedge_size` is not given, using `pc_size` as `pc_sharpedge_size`.")
+            logger.info(f"PointCrossAttentionEncoder | pc_sharpedge_size not given; using pc_size as pc_sharpedge_size")
         else:
-            print(f"PointCrossAttentionEncoder INFO: `pc_sharpedge_size` is given, using `pc_size`={pc_size}, `pc_sharpedge_size`={pc_sharpedge_size}.")
+            logger.info(f"PointCrossAttentionEncoder | pc_sharpedge_size given; using pc_size={pc_size}, pc_sharpedge_size={pc_sharpedge_size}")
 
         self.pc_size = pc_size
         self.pc_sharpedge_size = pc_sharpedge_size
