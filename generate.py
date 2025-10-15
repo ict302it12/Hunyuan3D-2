@@ -88,4 +88,7 @@ if __name__ == '__main__':
     parser.add_argument('--config-path', '-c', type=str, default="config.yaml", help="Path to configuration YAML file")
     args = parser.parse_args()
 
+    config_dir = "config"
+    args.config_path = os.path.join(config_dir, args.config_path)
+
     generate_from_img(**vars(args))

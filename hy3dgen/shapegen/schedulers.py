@@ -54,7 +54,7 @@ class FlowMatchEulerDiscreteSchedulerOutput(BaseOutput):
 
 class FlowMatchEulerDiscreteScheduler(SchedulerMixin, ConfigMixin):
     """
-    NOTE: this is very similar to diffusers.FlowMatchEulerDiscreteScheduler. Except our timesteps are reversed.
+    Note: this is very similar to diffusers.FlowMatchEulerDiscreteScheduler. Except our timesteps are reversed.
 
     Euler scheduler.
 

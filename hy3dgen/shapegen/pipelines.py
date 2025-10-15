@@ -589,7 +589,7 @@ class Hunyuan3DDiTFlowMatchingPipeline(Hunyuan3DDiTPipeline):
 
         device = self.device
         dtype = self.dtype
-        do_classifier_free_guidance = guidance_scale >= 0 and not (hasattr(self.model, 'guidance_embed') and self.model.guidance_embed)
+        do_classifier_free_guidance = guidance_scale >= 0 and not (hasattr(self.model, 'guidance_embed') and self.model.guidance_embed is True)
 
         # TO DO: test multiple image input
         #if not isinstance(image, (dict, list)):
@@ -600,7 +600,7 @@ class Hunyuan3DDiTFlowMatchingPipeline(Hunyuan3DDiTPipeline):
         batch_size = image.shape[0]
 
         # 5. Prepare timesteps
-        # NOTE: this is slightly different from common usage, we start from 0.
+        # Note: this is slightly different from common usage, we start from 0.
         sigmas = np.linspace(0, 1, num_inference_steps) if sigmas is None else sigmas
         timesteps, num_inference_steps = retrieve_timesteps(self.scheduler, num_inference_steps, device, sigmas=sigmas)
         latents = self.prepare_latents(batch_size, dtype, device, generator)
@@ -618,7 +618,7 @@ class Hunyuan3DDiTFlowMatchingPipeline(Hunyuan3DDiTPipeline):
                 else:
                     latent_model_input = latents
 
-                # NOTE: we assume model get timesteps ranged from 0 to 1
+                # Note: we assume model get timesteps ranged from 0 to 1
                 timestep = t.expand(latent_model_input.shape[0]).to(latents.dtype) / self.scheduler.config.num_train_timesteps
                 noise_pred = self.model(latent_model_input, timestep, cond, guidance=guidance)
 

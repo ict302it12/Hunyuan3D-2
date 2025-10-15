@@ -316,7 +316,7 @@ class FlashVDMVolumeDecoding:
         )
         batch_logits = []
         num_batchs = max(num_chunks // xyz_samples.shape[1], 1)
-        for start in tqdm(range(0, xyz_samples.shape[0], num_batchs), desc=f"FlashVDM Volume Decoding", disable=not enable_pbar):
+        for start in tqdm(range(0, xyz_samples.shape[0], num_batchs), desc="FlashVDM Volume Decoding", disable=not enable_pbar):
             queries = xyz_samples[start: start + num_batchs, :]
             batch = queries.shape[0]
             batch_latents = repeat(latents.squeeze(0), "p c -> b p c", b=batch)

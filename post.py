@@ -145,4 +145,7 @@ if __name__ == '__main__':
     parser.add_argument('--port', '-p', type=int, default=8080, help="API Server port")
     args = parser.parse_args()
 
+    config_dir = "config"
+    args.config_path = os.path.join(config_dir, args.config_path)
+
     response, output_path = pipeline(**vars(args))

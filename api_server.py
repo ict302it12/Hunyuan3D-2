@@ -15,6 +15,7 @@
 import asyncio
 import base64
 import logging
+import logging.handlers
 import os
 import sys
 import tempfile
@@ -29,9 +30,9 @@ import torch.types
 import trimesh
 import uvicorn
 import yaml
-from PIL import Image
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
+from PIL import Image
 
 from hy3dgen.rembg import BackgroundRemover
 from hy3dgen.shapegen import DegenerateFaceRemover, FaceReducer, FloaterRemover, Hunyuan3DDiTFlowMatchingPipeline
@@ -77,7 +78,7 @@ def build_logger(logger_name: str, logger_filename: str):
 
     stderr_logger = logging.getLogger("stderr")
     stderr_logger.setLevel(logging.ERROR)
-    sys.stderr = StreamToLogger(stderr_logger, logging.ERROR)
+    #sys.stderr = StreamToLogger(stderr_logger, logging.ERROR)
 
     # Get logger
     logger = logging.getLogger(logger_name)
@@ -127,10 +128,10 @@ class StreamToLogger(object):
         self.linebuf = ''
 
 
-#def pretty_print_semaphore(semaphore):
-#    if semaphore is None:
-#        return "None"
-#    return f"Semaphore(value={semaphore._value}, locked={semaphore.locked()})"
+def pretty_print_semaphore(semaphore):
+    if semaphore is None:
+        return "None"
+    return f"Semaphore(value={semaphore._value}, locked={semaphore.locked()})"
 
 
 SAVE_DIR = "output_cache"
@@ -384,9 +385,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
     logger.info(f"args: {args}")
 
+    config_dir = "config"
+    args.config_path = os.path.join(config_dir, args.config_path)
+    with open(os.path.join(config_dir, "log_config.yaml"), 'rb') as f:
+        log_config = yaml.safe_load(f)
+
     model_semaphore = asyncio.Semaphore(args.limit_model_concurrency)
     worker = ModelWorker(**vars(args))
 
-    log_config = uvicorn.config.LOGGING_CONFIG
-    log_config['handlers']['default']['stream'] = log_config['handlers']['default']['stream'].replace('stderr', 'stdout')
     uvicorn.run(app, host=args.host, port=args.port, log_config=log_config, log_level='info')
